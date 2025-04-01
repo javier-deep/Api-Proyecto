@@ -24,7 +24,7 @@ mongoose.connect('mongodb+srv://mewfoodcontacto:mewfood@cluster0.somvq.mongodb.n
 // Esquema de Usuario
 const UsuarioSchema = new mongoose.Schema({
     nombre: { type: String, required: true },
-    correo: { type: String, required: true, unique: true },
+    email: { type: String, required: true, unique: true },
     telefono: { type: String, required: true },
     password: { type: String, required: true },
     mascotas: [
@@ -65,9 +65,9 @@ const upload = multer({ storage });
 // Registro de usuarios
 app.post('/register', async (req, res) => {
     console.log("📥 Datos recibidos en registro:", req.body);
-    const { nombre, correo, telefono, password } = req.body;
+    const { nombre, email, telefono, password } = req.body;
 
-    if (!nombre || !correo || !telefono || !password) {
+    if (!nombre || !email || !telefono || !password) {
         return res.status(400).json({ error: "Todos los campos son obligatorios" });
     }
 
@@ -75,7 +75,7 @@ app.post('/register', async (req, res) => {
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(password, salt);
 
-        const nuevoUsuario = new Usuario({ nombre, correo, telefono, password: hashedPassword });
+        const nuevoUsuario = new Usuario({ nombre, email, telefono, password: hashedPassword });
         await nuevoUsuario.save();
         res.status(201).json({ message: "✅ Registro exitoso" });
     } catch (error) {
@@ -87,10 +87,10 @@ app.post('/register', async (req, res) => {
 // Inicio de sesión
 app.post('/login', async (req, res) => {
     console.log("📥 Intento de inicio de sesión:", req.body);
-    const { correo, password } = req.body;
+    const { email, password } = req.body;
 
     try {
-        const usuario = await Usuario.findOne({ correo });
+        const usuario = await Usuario.findOne({ email });
 
         if (!usuario) {
             return res.status(400).json({ error: "Usuario no encontrado" });
@@ -153,14 +153,14 @@ app.get('/mascotas', async (req, res) => {
 });
 
 //app.listen(PORT, () => {
-    //console.log(`🚀 Servidor corriendo en https://https://api-proyecto-4.onrender.com`);
+//console.log(`🚀 Servidor corriendo en https://https://api-proyecto-4.onrender.com`);
 //});
 
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
-  });
+});
 
 // Iniciar servidor
 //app.listen(PORT, () => {
-    //console.log(`🚀 Servidor corriendo en el puerto ${PORT}`);
+//console.log(`🚀 Servidor corriendo en el puerto ${PORT}`);
 //});
