@@ -4,6 +4,7 @@ const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const multer = require('multer');
 const path = require('path');
+const { appendFile } = require('fs');
 
 const app = express();
 const PORT = 3000;
@@ -37,7 +38,7 @@ const UsuarioSchema = new mongoose.Schema({
         }
     ]
 });
-const Usuario = mongoose.model('users', UsuarioSchema);
+const Usuario = mongoose.model('User', UsuarioSchema);
 
 // Esquema de Mascota
 const MascotaSchema = new mongoose.Schema({
@@ -67,9 +68,9 @@ app.post('/register', async (req, res) => {
     console.log("📥 Datos recibidos en registro:", req.body);
     const { nombre, email, telefono, password } = req.body;
 
-    if (!nombre || !email || !telefono || !password) {
-        return res.status(400).json({ error: "Todos los campos son obligatorios" });
-    }
+if (!nombre || !email || !telefono || !password) {
+    return res.status(400).json({ error: "Todos los campos son obligatorios" });
+}
 
     try {
         const salt = await bcrypt.genSalt(10);
@@ -86,9 +87,8 @@ app.post('/register', async (req, res) => {
 
 // Inicio de sesión
 app.post('/login', async (req, res) => {
-    console.log("📥 Intento de inicio de sesión:", req.body);
     const { email, password } = req.body;
-
+    
     try {
         const usuario = await Usuario.findOne({ email });
 
@@ -101,14 +101,20 @@ app.post('/login', async (req, res) => {
             return res.status(400).json({ error: "Contraseña incorrecta" });
         }
 
-        res.status(200).json({ message: "✅ Inicio de sesión exitoso", usuario });
+        res.status(200).json({ 
+            message: "✅ Inicio de sesión exitoso", 
+            usuario: {
+                _id: usuario._id, 
+                email: usuario.email
+            }
+        });
     } catch (error) {
         console.error("❌ Error en el login:", error);
         res.status(500).json({ error: "Error al iniciar sesión" });
     }
 });
 
-// Registro de mascota
+
 app.post('/registrar-mascota', upload.single('foto'), async (req, res) => {
     console.log("📥 Datos recibidos en registrar-mascota:", req.body);
     const { nombre, raza, color, peso, usuarioId } = req.body;
@@ -117,7 +123,6 @@ app.post('/registrar-mascota', upload.single('foto'), async (req, res) => {
         return res.status(400).json({ error: "Todos los campos y la foto son obligatorios" });
     }
 
-    // Validación de usuario existente
     try {
         const usuario = await Usuario.findById(usuarioId);
         if (!usuario) {
@@ -141,26 +146,128 @@ app.post('/registrar-mascota', upload.single('foto'), async (req, res) => {
     }
 });
 
-// Obtener mascotas
-app.get('/mascotas', async (req, res) => {
+
+app.get('/mascotas/buscar', async (req, res) => {
+  const { email, usuarioId } = req.query;
+
+  if (email) {
+    // Buscar mascotas por email
     try {
-        const mascotas = await Mascota.find();
-        res.status(200).json(mascotas);
+      const mascotas = await Mascota.find({ email: email });
+      res.json(mascotas);
     } catch (error) {
-        console.error("❌ Error al obtener mascotas:", error);
-        res.status(500).json({ error: "Error al obtener mascotas" });
+      console.error("Error al buscar mascotas:", error);
+      res.status(500).json({ error: "Error al buscar mascotas por email" });
+    }
+  } else if (usuarioId) {
+    // Buscar mascotas por usuarioId
+    try {
+      const mascotas = await Mascota.find({ usuarioId: usuarioId });
+      res.json(mascotas);
+    } catch (error) {
+      console.error("Error al buscar mascotas:", error);
+      res.status(500).json({ error: "Error al buscar mascotas por usuarioId" });
+    }
+  } else {
+    res.status(400).json({ error: "Faltan parámetros de búsqueda" });
+  }
+});
+
+  app.get('/usuario-buscar', async (req, res) => {
+    const { email } = req.query;
+
+    try {
+        console.log('Buscando usuario con email:', email);
+
+        // Asegúrate de convertir el email a minúsculas
+        const usuario = await Usuario.findOne({ email: email.toLowerCase() });
+
+        if (!usuario) {
+            console.log('Usuario no encontrado para el email:', email);
+            return res.status(404).json({ message: 'Usuario no encontrado' });
+        }
+
+        console.log('Usuario encontrado:', usuario);  // Verifica que los datos estén bien
+
+        // Extraemos el nombre y el teléfono directamente desde el documento
+        const nombre = usuario.nombre || "";  // Asegúrate de que sea 'nombre'
+        const telefono = usuario.telefono || "";  // Extrae directamente como string
+
+        console.log('Datos a devolver:', {
+            nombre,
+            telefono,
+            email: usuario.email
+        });  // Verifica los datos antes de devolverlos
+
+        res.status(200).json({
+            nombre,
+            telefono,
+            email: usuario.email
+        });
+    } catch (error) {
+        console.error('Error al obtener los datos del usuario:', error);
+        res.status(500).json({ message: 'Error interno del servidor', error: error.message });
     }
 });
 
-//app.listen(PORT, () => {
-//console.log(`🚀 Servidor corriendo en https://https://api-proyecto-4.onrender.com`);
-//});
+app.put('/usuario-editar', async (req, res) => {
+    const { nombre, telefono, email } = req.body;
+
+    try {
+        // Buscar y actualizar el usuario por email
+        const usuario = await Usuario.findOneAndUpdate(
+            { email: email.toLowerCase() }, // Convertir email a minúsculas para evitar problemas de mayúsculas
+            { nombre, telefono },
+            { new: true } // Retorna el documento actualizado
+        );
+
+        if (!usuario) {
+            return res.status(404).json({ message: 'Usuario no encontrado' });
+        }
+
+        res.status(200).json({ message: 'Usuario actualizado', usuario });
+    } catch (error) {
+        console.error('Error al actualizar usuario:', error);
+        res.status(500).json({ message: 'Error interno del servidor', error: error.message });
+    }
+});
+
+app.post('/update-password', async (req, res) => {
+    const { email, currentPassword, newPassword } = req.body;
+
+    try {
+        if (!email || !currentPassword || !newPassword) {
+            return res.status(400).json({ message: 'Datos incompletos' });
+        }
+
+        // Asegúrate de convertir el email a minúsculas
+        const usuario = await Usuario.findOne({ email: email.toLowerCase() });
+        if (!usuario) {
+            return res.status(404).json({ message: 'Usuario no encontrado' });
+        }
+
+        const isMatch = await bcrypt.compare(currentPassword, usuario.password);
+        if (!isMatch) {
+            return res.status(400).json({ message: 'Contraseña actual incorrecta' });
+        }
+
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+        usuario.password = hashedPassword;
+        await usuario.save();
+
+        return res.status(200).json({ message: 'Contraseña actualizada correctamente' });
+
+    } catch (error) {
+        console.error('Error en el servidor:', error.message);
+        return res.status(500).json({ message: 'Error en el servidor', error: error.message });
+    }
+});
+
+
+  
+  
+
 
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
-});
-
-// Iniciar servidor
-//app.listen(PORT, () => {
-//console.log(`🚀 Servidor corriendo en el puerto ${PORT}`);
-//});
+  });
