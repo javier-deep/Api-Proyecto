@@ -1,3 +1,4 @@
+
 const express = require("express");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
@@ -7,18 +8,18 @@ const router = express.Router();
 
 router.post("/register", async (req, res) => {
     try {
-        const { nombre_completo, telefono, correo, tipo, mascota, password } = req.body;
+        const { nombre_completo, telefono, email, tipo, mascota, password } = req.body;
 
-        if (!nombre_completo || !telefono || !correo || !password) {
+        if (!nombre_completo || !telefono || !email || !password) {
             return res.status(400).json({ msg: "Todos los campos son obligatorios" });
         }
 
-        let user = await User.findOne({ correo });
+        let user = await User.findOne({ email });
         if (user) return res.status(400).json({ msg: "El correo ya está registrado" });
 
         const hashedPassword = await bcrypt.hash(password, 10);
 
-        user = new User({ nombre_completo, telefono, correo, tipo, mascota, password: hashedPassword });
+        user = new User({ nombre_completo, telefono, email, tipo, mascota, password: hashedPassword });
         await user.save();
 
         res.status(201).json({ msg: "Usuario registrado correctamente" });
@@ -32,21 +33,20 @@ router.post("/register", async (req, res) => {
 router.post("/login", async (req, res) => {
     try {
         const { email, password } = req.body;
-        const correo = email;  
 
         console.log(" Intento de inicio de sesión:", req.body);
 
-        if (!correo || !password) {
+        if (!email || !password) {
             return res.status(400).json({ msg: "Correo y contraseña son obligatorios" });
         }
 
-        const user = await User.findOne({ correo }).select("+password");
+        const user = await User.findOne({ email }).select("+password"); // Aquí corregido
         if (!user) {
-            console.log(" Usuario no encontrado en la BD con correo:", correo);
+            console.log(" Usuario no encontrado en la BD con email:", email);
             return res.status(400).json({ msg: "Usuario no encontrado" });
         }
 
-        console.log(" Usuario encontrado:", user.correo);
+        console.log(" Usuario encontrado:", user.email);
 
         const isMatch = await bcrypt.compare(password, user.password);
         console.log(" Coincide:", isMatch);
@@ -66,4 +66,6 @@ router.post("/login", async (req, res) => {
 });
 
 
+
 module.exports = router;
+
